@@ -1,5 +1,6 @@
 library(tidyverse)
 library(tidync)
+library(furrr)
 
 dates=seq.Date(from=as.Date("2019-01-01"),
                to=as.Date("2023-12-31"),
@@ -14,17 +15,13 @@ counties<-
   tigris::counties(year=2021,cb=T)|>
   select(county_fips=GEOID)
 
-
-td=tempdir()
-# dir.create(td,showWarnings = F)
-
-shp_weather<-
-  imap(
-    dates_str[1:2],
+plan(multisession, workers=4)
+future_iwalk(
+    dates_str,
     \(x,y) {
-      f=glue::glue("https://www.northwestknowledge.net/metdata/data/permanent/{year(y)}/permanent_gridmet_{x}.nc")
+      f=glue::glue("https://www.northwestknowledge.net/metdata/data/permanent/{lubridate::year(y)}/permanent_gridmet_{x}.nc")
       
-      tf=paste0(td,"/",basename(f))
+      tf=paste0(tempdir(),"/",basename(f))
       print(f)
       print(tf)
       
@@ -47,8 +44,7 @@ shp_weather<-
       write_csv(c_out,glue::glue("Output/county_weather_{x}.csv.gz"))
       
       return(c_out)
-    }
+    },
+    .progress=TRUE
   )
 
-shp_weather|>list_rbind()|>unnest(cols=c(vals))|>
-  write_csv("Output/county_weather.csv.gz")
